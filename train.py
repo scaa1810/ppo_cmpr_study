@@ -9,7 +9,6 @@ import argparse
 from config import VARIANTS, PPO_DEFAULTS
 
 class LunarLanderWrapper(gym.Wrapper):
-    """Custom wrapper: obs norm + reward shaping"""
     def __init__(self, env, normalize_obs=False, custom_reward=False):
         super().__init__(env)
         self.normalize_obs = normalize_obs
@@ -38,7 +37,6 @@ class LunarLanderWrapper(gym.Wrapper):
         return (obs - obs.mean()) / (obs.std() + 1e-8)
 
 def make_env(seed=0, normalize_obs=False, custom_reward=False):
-    """Returns a FUNCTION that creates the environment"""
     def _init():
         env = gym.make("LunarLanderContinuous-v2")
         env = Monitor(env)
@@ -54,21 +52,17 @@ def train_variant(variant_name, seeds=[0,1,2]):
     for seed in seeds:
         print(f"\n--- SEED {seed} ---")
         
-        # Create environment factory
         env_fn = make_env(
             seed=seed,
             normalize_obs=config["normalize_obs"],
             custom_reward=config["custom_reward"]
         )
         
-        # VecEnv
-                # VecEnv
         env = DummyVecEnv([env_fn])
         
         if config["normalize_obs"]:
             env = VecNormalize(env, norm_reward=False, training=True)
         
-        # Optional action noise for exploration
         action_noise = None
         if config.get("param_noise", False):
             n_actions = env.action_space.shape[-1]
@@ -76,8 +70,6 @@ def train_variant(variant_name, seeds=[0,1,2]):
                 mean=np.zeros(n_actions),
                 sigma=0.1 * np.ones(n_actions)
             )
-        
-                # PPO with optional entropy annealing
         ent_coef = 0.01 if config.get("entropy_anneal", False) else 0.0
         
         model = PPO(
@@ -91,16 +83,14 @@ def train_variant(variant_name, seeds=[0,1,2]):
             n_epochs=config["n_epochs"],
             learning_rate=config["learning_rate"],
             clip_range=config["clip_range"],
-            ent_coef=ent_coef,  # ← Start at 0.01
+            ent_coef=ent_coef,
             tensorboard_log="./logs/",
         )
 
 
         
-        # Train
         model.learn(total_timesteps=config["total_timesteps"])
         
-        # Save
         save_path = f"results/{variant_name}_seed{seed}"
         model.save(save_path)
         if config["normalize_obs"]:
